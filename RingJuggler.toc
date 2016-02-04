@@ -1,0 +1,9 @@
+## Interface: 60200
+## Title: RingJuggler
+## Notes: Automates equipping Sculpted Eaglebone Ring when entering instences.
+## Author: Gethe
+## Version: @project-version@
+## SavedVariablesPerCharacter: RingJugglerChar
+
+RingJuggler.xml
+RingJuggler.lua
