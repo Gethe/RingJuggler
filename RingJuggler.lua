@@ -1,5 +1,4 @@
 local ADDON_NAME, RingJuggler = ...
-RingJuggler.Version = GetAddOnMetadata(ADDON_NAME, "Version")
 
 -- Lua Globals --
 local _G = _G
@@ -7,10 +6,11 @@ local select, tostring = _G.select, _G.tostring
 
 -- WoW Globals --
 local GetContainerItemLink = _G.GetContainerItemLink
+local GetInventoryItemLink = _G.GetInventoryItemLink
 
 -- Libs --
 
-local isLegion = select(4, GetBuildInfo()) >= 70000
+--local isLegion = select(4, _G.GetBuildInfo()) >= 70000
 local debugger, debug do
     local LTD = true
     function debug(...)
@@ -36,16 +36,36 @@ local function rjPrint(...)
     _G.print("|cff22dd22"..ADDON_NAME.."|r:", ...)
 end
 
+RingJuggler.Version = _G.GetAddOnMetadata(ADDON_NAME, "Version")
 local RJChar
 local defaults = {
     version = RingJuggler.Version,
     swapContainer = _G.BACKPACK_CONTAINER,
     swapSlot = 2,
-    swapRingLink = "item:131764:0:0:0:0:0:0:0:0:0:0",
+    swapRingLink = "131764",
     invSlot = _G.INVSLOT_FINGER2,
 }
 
-local invRingLink
+local hasSwapRing, invRingLink = false
+local function FindInBags(item)
+    debug("FindInBags", item)
+    for bagID = 0, _G.NUM_BAG_SLOTS do
+        debug("Bag", bagID)
+        local numSlots = _G.GetContainerNumSlots(bagID)
+        if numSlots > 0 then
+            for slot = 1, numSlots do
+                debug("Slot", slot)
+                local item2 = GetContainerItemLink(bagID, slot)
+                local item2ID = _G.GetContainerItemID(bagID, slot)
+                debug("Check item", item2ID, item2)
+                if item == item2 or _G.tonumber(item) == item2ID then
+                    debug("Found", bagID, slot, item2)
+                    return bagID, slot, item2
+                end
+            end
+        end
+    end
+end
 local function FindRing(ringLink)
     debug("FindRing", ringLink)
     local itemLink = GetContainerItemLink(RJChar.swapContainer, RJChar.swapSlot)
@@ -55,31 +75,22 @@ local function FindRing(ringLink)
         return RJChar.swapContainer, RJChar.swapSlot
     else
         debug("Not at saved location")
-        for bagID = 0, _G.NUM_BAG_SLOTS do
-            local numSlots = _G.GetContainerNumSlots(bagID)
-            if numSlots > 0 then
-                for slot = 1, numSlots do
-                    itemLink = GetContainerItemLink(bagID, slot)
-                    if itemLink == ringLink then
-                        debug("Found", bagID, slot)
-                        RJChar.swapContainer = bagID
-                        RJChar.swapSlot = slot
-                        return bagID, slot
-                    end
-                end
-            end
-        end
+        return FindInBags(ringLink, "Link")
     end
-    debug("Didn't find swap ring")
 end
 
 local function EquipRing(ringLink)
     debug("EquipRing", ringLink)
-    _G.ClearCursor()
+    if GetInventoryItemLink("player", RJChar.invSlot) == ringLink then
+        debug("Already equipped")
+    else
+        _G.ClearCursor()
 
-    local bagID, slot = FindRing(ringLink)
-    _G.PickupInventoryItem(RJChar.invSlot)
-    _G.PickupContainerItem(bagID, slot)
+        local bagID, slot = FindRing(ringLink)
+        _G.PickupInventoryItem(RJChar.invSlot)
+        _G.PickupContainerItem(bagID, slot)
+        rjPrint(ringLink.." has been equipped.")
+    end
 end
 local function EquipSwapRing()
     debug("EquipSwapRing")
@@ -90,7 +101,7 @@ local function EquipInvRing()
     return EquipRing(invRingLink)
 end
 
-local frame = CreateFrame("Frame")
+local frame = _G.CreateFrame("Frame")
 function frame:ADDON_LOADED(name)
     if name == ADDON_NAME then
         debug(name, "loaded")
@@ -101,32 +112,52 @@ function frame:ADDON_LOADED(name)
 end
 function frame:PLAYER_LOGIN(...)
     debug("PLAYER_LOGIN", ...)
-    invRingLink = _G.GetInventoryItemLink("player", RJChar.invSlot)
+    local swapRingLink = RJChar.swapRingLink
+    invRingLink = GetInventoryItemLink("player", RJChar.invSlot)
     debug("Inv Ring", invRingLink)
-    if RJChar.swapRingLink == "" then
-        rjPrint([[Type "/rj <itemLink>" to set the ring to swap in.]])
+    if invRingLink == swapRingLink then
+        debug("Still wearing swap ring, look for inv ring in bags", RJChar.swapContainer, RJChar.swapSlot)
+        invRingLink = GetContainerItemLink(RJChar.swapContainer, RJChar.swapSlot)
+        debug("New Inv Ring", invRingLink)
     end
-    debug("Old Logout", _G.Logout)
+
+    if _G.tonumber(swapRingLink) then
+        debug("Swap ring itemLink not set, search in bags", swapRingLink)
+        local bagID, slot, ringLink = FindInBags(swapRingLink)
+        if bagID then
+            RJChar.swapRingLink = ringLink
+            RJChar.swapContainer = bagID
+            RJChar.swapSlot = slot
+            hasSwapRing = true
+        end
+    elseif _G.IsEquippableItem(swapRingLink) then
+        hasSwapRing = true
+    end
+
     local oldLogout = _G.Logout
     _G.Logout = function()
-        EquipInvRing()
-        oldLogout()
+        debug("Logout", hasSwapRing)
+        if hasSwapRing then
+            EquipInvRing()
+        end
+        --oldLogout()
     end
-    debug("New Logout", _G.Logout)
+    debug("Override Logout", _G.Logout)
 end
 function frame:PLAYER_ENTERING_WORLD(...)
-    debug("PLAYER_ENTERING_WORLD", ...)
-    if RJChar.swapRingLink == "" then return end
-    local instanceName, instanceType = _G.GetInstanceInfo()
-    debug("Location:", instanceName, instanceType)
-    if instanceName:find("Garrison") or instanceType == "none" then
-        EquipSwapRing()
-    else
-        EquipInvRing()
+    debug("PLAYER_ENTERING_WORLD", hasSwapRing, ...)
+    if hasSwapRing then
+        local instanceName, instanceType = _G.GetInstanceInfo()
+        debug("Location:", instanceName, instanceType)
+        if instanceName:find("Garrison") or instanceType == "none" then
+            EquipSwapRing()
+        else
+            EquipInvRing()
+        end
     end
 end
-function frame:PLAYER_LEAVING_WORLD(...)
-    debug("PLAYER_LEAVING_WORLD", ...)
+function frame:PLAYER_EQUIPMENT_CHANGED(...)
+    debug("PLAYER_EQUIPMENT_CHANGED", ...)
     --return EquipInvRing()
 end
 function frame:PLAYER_LOGOUT()
@@ -135,13 +166,11 @@ function frame:PLAYER_LOGOUT()
 end
 
 for event, func in next, frame do
-    debug("Iter", event, func)
+    if type(func) == "function" then
+        debug("Iter", event, func)
+        frame:RegisterEvent(event)
+    end
 end
-frame:RegisterEvent("ADDON_LOADED")
-frame:RegisterEvent("PLAYER_LOGIN")
-frame:RegisterEvent("PLAYER_ENTERING_WORLD")
-frame:RegisterEvent("PLAYER_LEAVING_WORLD")
-frame:RegisterEvent("PLAYER_LOGOUT")
 frame:SetScript("OnEvent", function(self, event, ...)
     debug("OnEvent", event, ...)
     return self[event](self, ...)
@@ -149,10 +178,10 @@ end)
 
 
 
--- Slash Commands
+-- Slash Commands IsEquippableItem("Mannoroth's Calcified Eye")
 _G.SLASH_RINGJUGGLER1, _G.SLASH_RINGJUGGLER2 = "/ringjuggler", "/rj";
-function SlashCmdList.RINGJUGGLER(msg, editBox)
-    debug("msg:", msg)
+_G.SlashCmdList.RINGJUGGLER = function(msg, editBox)
+    debug("msg:", msg, editBox)
     if msg == "debug" then
         if debugger then
             if debugger:Lines() == 0 then
@@ -164,8 +193,14 @@ function SlashCmdList.RINGJUGGLER(msg, editBox)
             debugger:Display()
         end
     elseif _G.IsEquippableItem(msg) then
-        RJChar.swapRingLink = msg
-        EquipSwapRing()
+        local bagID, slot, ringLink = FindInBags(msg)
+        if bagID then
+            RJChar.swapRingLink = ringLink
+            RJChar.swapContainer = bagID
+            RJChar.swapSlot = slot
+            hasSwapRing = true
+            EquipSwapRing()
+        end
     else
         -- open config
     end
