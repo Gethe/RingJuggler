@@ -4,10 +4,6 @@ local ADDON_NAME, RingJuggler = ...
 local _G = _G
 local select, tostring = _G.select, _G.tostring
 
--- WoW Globals --
-local GetContainerItemLink = _G.GetContainerItemLink
-local GetInventoryItemLink = _G.GetInventoryItemLink
-
 -- Libs --
 
 --local isLegion = select(4, _G.GetBuildInfo()) >= 70000
@@ -55,7 +51,7 @@ local function FindInBags(item)
         if numSlots > 0 then
             for slot = 1, numSlots do
                 debug("Slot", slot)
-                local item2 = GetContainerItemLink(bagID, slot)
+                local item2 = _G.GetContainerItemLink(bagID, slot)
                 local item2ID = _G.GetContainerItemID(bagID, slot)
                 debug("Check item", item2ID, item2)
                 if item == item2 or _G.tonumber(item) == item2ID then
@@ -68,7 +64,7 @@ local function FindInBags(item)
 end
 local function FindRing(ringLink)
     debug("FindRing", ringLink)
-    local itemLink = GetContainerItemLink(RJChar.swapContainer, RJChar.swapSlot)
+    local itemLink = _G.GetContainerItemLink(RJChar.swapContainer, RJChar.swapSlot)
     debug("itemLink", itemLink)
     if itemLink == ringLink then
         debug("Found", RJChar.swapContainer, RJChar.swapSlot)
@@ -81,7 +77,7 @@ end
 
 local function EquipRing(ringLink)
     debug("EquipRing", ringLink)
-    if GetInventoryItemLink("player", RJChar.invSlot) == ringLink then
+    if _G.GetInventoryItemLink("player", RJChar.invSlot) == ringLink then
         debug("Already equipped")
     else
         _G.ClearCursor()
@@ -107,22 +103,27 @@ function frame:ADDON_LOADED(name)
         debug(name, "loaded")
         RJChar = _G.RingJugglerChar or defaults
         debug("Char settings", _G.RingJugglerChar, RJChar)
+
+        local oldLogout = _G.Logout
+        _G.Logout = function()
+            debug("Logout", hasSwapRing)
+            if hasSwapRing then
+                EquipInvRing()
+            end
+            oldLogout()
+        end
+        debug("Override Logout", _G.Logout)
+
         self:UnregisterEvent("ADDON_LOADED")
     end
 end
 function frame:PLAYER_LOGIN(...)
     debug("PLAYER_LOGIN", ...)
-    local swapRingLink = RJChar.swapRingLink
-    invRingLink = GetInventoryItemLink("player", RJChar.invSlot)
-    debug("Inv Ring", invRingLink)
-    if invRingLink == swapRingLink then
-        debug("Still wearing swap ring, look for inv ring in bags", RJChar.swapContainer, RJChar.swapSlot)
-        invRingLink = GetContainerItemLink(RJChar.swapContainer, RJChar.swapSlot)
-        debug("New Inv Ring", invRingLink)
-    end
 
+    local swapRingLink = RJChar.swapRingLink
+    debug("Swap Ring", _G.strsplit("|", swapRingLink))
     if _G.tonumber(swapRingLink) then
-        debug("Swap ring itemLink not set, search in bags", swapRingLink)
+        debug("Swap ring itemLink not set, search in bags")
         local bagID, slot, ringLink = FindInBags(swapRingLink)
         if bagID then
             RJChar.swapRingLink = ringLink
@@ -131,18 +132,24 @@ function frame:PLAYER_LOGIN(...)
             hasSwapRing = true
         end
     elseif _G.IsEquippableItem(swapRingLink) then
+        debug("Swap ring is equippable")
         hasSwapRing = true
+    else
+        debug("Swap ring inconclusive")
+        hasSwapRing = nil
+        _G.C_Timer.After(1, self.PLAYER_LOGIN)
     end
 
-    local oldLogout = _G.Logout
-    _G.Logout = function()
-        debug("Logout", hasSwapRing)
-        if hasSwapRing then
-            EquipInvRing()
+    if hasSwapRing then
+        invRingLink = _G.GetInventoryItemLink("player", RJChar.invSlot)
+        debug("Inv Ring", _G.strsplit("|", invRingLink))
+
+        if invRingLink:match("item[%-?%d:]+") == swapRingLink:match("item[%-?%d:]+") then
+            debug("Still wearing swap ring, look for inv ring in bags", RJChar.swapContainer, RJChar.swapSlot)
+            invRingLink = _G.GetContainerItemLink(RJChar.swapContainer, RJChar.swapSlot)
+            debug("New Inv Ring", _G.strsplit("|", invRingLink))
         end
-        --oldLogout()
     end
-    debug("Override Logout", _G.Logout)
 end
 function frame:PLAYER_ENTERING_WORLD(...)
     debug("PLAYER_ENTERING_WORLD", hasSwapRing, ...)
@@ -178,7 +185,7 @@ end)
 
 
 
--- Slash Commands IsEquippableItem("Mannoroth's Calcified Eye")
+-- Slash Commands IsEquippableItem("|cffa335ee|Hitem:124204:5326:0:0:0:0:0:0:100:268:4:5:1:566:529|h[Mannoroth's Calcified Eye]|h|r")
 _G.SLASH_RINGJUGGLER1, _G.SLASH_RINGJUGGLER2 = "/ringjuggler", "/rj";
 _G.SlashCmdList.RINGJUGGLER = function(msg, editBox)
     debug("msg:", msg, editBox)
@@ -202,6 +209,6 @@ _G.SlashCmdList.RINGJUGGLER = function(msg, editBox)
             EquipSwapRing()
         end
     else
-        -- open config
+        debug("open config")
     end
 end
