@@ -1,6 +1,6 @@
-ZoneSpec
-========
+RingJuggler
+===========
 
-This addon will allow you to save your talent and glyph choices based on the area you are in. The next time you enter the same area, a row of icons will be displayed representing the talents or glyphs currently saved for that location.
+This addon will automates the swaping of the [Sculpted Eaglebone Ring](http://legion.wowhead.com/item=131764/sculpted-eaglebone-ring&bonus=1792) to ensure that you have perma water walking whenever in the open world.
 
-When you have six or less of the clearing reagent (Tomes of the Clear Mind, etc.), an icon will appear along with how much you have left.
+It will re-equip your previous ring when you enter an instance (eg. Raid, BG, etc.) and also when logging out.
