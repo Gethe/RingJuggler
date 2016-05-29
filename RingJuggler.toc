@@ -1,8 +1,8 @@
 ## Interface: 60200
 ## Title: RingJuggler
-## Notes: Automates equipping Sculpted Eaglebone Ring when entering instences.
+## Notes: Automates equipping Sculpted Eaglebone Ring when entering instances.
 ## Author: Gethe
-## Version: @project-version@
+## Version: v0.1.0
 ## SavedVariablesPerCharacter: RingJugglerChar
 
 RingJuggler.xml
