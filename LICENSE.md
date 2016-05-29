@@ -1,4 +1,4 @@
-Copyright (c) 2013-2016 Gethe. All rights reserved.
+Copyright (c) 2016 Gethe. All rights reserved.
 
 Permission is granted for anyone to use, read, or otherwise interpret this
 software for any purpose, without any restrictions.
@@ -10,7 +10,7 @@ Permission is granted for anyone to aggregate this software with other works
 not derived from this software for the purpose of creating a user interface
 replacement (commonly referred to as a "compilation" or "addon pack") for the
 "World of Warcraft" game client, and to distribute such collective works on
-websites operated by Curse Inc or ZAM Network LLC (including curse.com,
+websites operated by Curse Inc or Good Game Mods, LLC (including curse.com,
 curseforge.com, wowace.com and wowinterface.com) as long as the software is
 not modified in any way, including by modifying or removing any files.
 

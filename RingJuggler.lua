@@ -11,7 +11,7 @@ local debugger, debug do
     local LTD = true
     function debug(...)
         if not debugger and LTD then
-            LTD = _G.LibStub("RealUI_LibTextDump-1.0")
+            LTD = _G.LibStub("RealUI_LibTextDump-1.0", true)
             if LTD then
                 debugger = LTD:New(ADDON_NAME .." Debug Output", 640, 480)
             else
@@ -31,6 +31,9 @@ end
 local function rjPrint(...)
     _G.print("|cff22dd22"..ADDON_NAME.."|r:", ...)
 end
+local function split(string)
+    return _G.strsplit("|", string or "")
+end
 
 RingJuggler.Version = _G.GetAddOnMetadata(ADDON_NAME, "Version")
 local RJChar
@@ -41,26 +44,35 @@ local defaults = {
     swapRingLink = "131764",
     invSlot = _G.INVSLOT_FINGER2,
 }
+local ITEM_STRING_MATCH = "item[%-?%d:]+"
 
 local hasSwapRing, invRingLink = false
 local function FindInBags(item)
     debug("FindInBags", item)
+    local GetItem
+    if _G.tonumber(item) then
+        item = _G.tonumber(item)
+        GetItem = _G.GetContainerItemID
+    else
+        GetItem = _G.GetContainerItemLink
+    end
+
     for bagID = 0, _G.NUM_BAG_SLOTS do
         debug("Bag", bagID)
         local numSlots = _G.GetContainerNumSlots(bagID)
         if numSlots > 0 then
             for slot = 1, numSlots do
-                debug("Slot", slot)
-                local item2 = _G.GetContainerItemLink(bagID, slot)
-                local item2ID = _G.GetContainerItemID(bagID, slot)
-                debug("Check item", item2ID, item2)
-                if item == item2 or _G.tonumber(item) == item2ID then
+                local item2 = GetItem(bagID, slot)
+                debug("Check Slot", slot, item2)
+                if item == item2 then
                     debug("Found", bagID, slot, item2)
                     return bagID, slot, item2
                 end
             end
         end
     end
+    debug("Ring not found")
+    hasSwapRing = false
 end
 local function FindRing(ringLink)
     debug("FindRing", ringLink)
@@ -83,9 +95,11 @@ local function EquipRing(ringLink)
         _G.ClearCursor()
 
         local bagID, slot = FindRing(ringLink)
-        _G.PickupInventoryItem(RJChar.invSlot)
-        _G.PickupContainerItem(bagID, slot)
-        rjPrint(ringLink.." has been equipped.")
+        if bagID and slot then
+            _G.PickupContainerItem(bagID, slot)
+            _G.PickupInventoryItem(RJChar.invSlot)
+            rjPrint(ringLink.." has been equipped.")
+        end
     end
 end
 local function EquipSwapRing()
@@ -121,7 +135,7 @@ function frame:PLAYER_LOGIN(...)
     debug("PLAYER_LOGIN", ...)
 
     local swapRingLink = RJChar.swapRingLink
-    debug("Swap Ring", _G.strsplit("|", swapRingLink))
+    debug("Swap Ring", split(swapRingLink))
     if _G.tonumber(swapRingLink) then
         debug("Swap ring itemLink not set, search in bags")
         local bagID, slot, ringLink = FindInBags(swapRingLink)
@@ -137,22 +151,24 @@ function frame:PLAYER_LOGIN(...)
     else
         debug("Swap ring inconclusive")
         hasSwapRing = nil
-        _G.C_Timer.After(1, self.PLAYER_LOGIN)
+        _G.C_Timer.After(2, function()
+            self:PLAYER_LOGIN()
+        end)
     end
 
     if hasSwapRing then
         invRingLink = _G.GetInventoryItemLink("player", RJChar.invSlot)
-        debug("Inv Ring", _G.strsplit("|", invRingLink))
+        debug("Inv Ring", split(invRingLink))
 
-        if invRingLink:match("item[%-?%d:]+") == swapRingLink:match("item[%-?%d:]+") then
+        if invRingLink and invRingLink:match(ITEM_STRING_MATCH) == swapRingLink:match(ITEM_STRING_MATCH) then
             debug("Still wearing swap ring, look for inv ring in bags", RJChar.swapContainer, RJChar.swapSlot)
             invRingLink = _G.GetContainerItemLink(RJChar.swapContainer, RJChar.swapSlot)
-            debug("New Inv Ring", _G.strsplit("|", invRingLink))
+            debug("New Inv Ring", split(invRingLink))
         end
     end
 end
 function frame:PLAYER_ENTERING_WORLD(...)
-    debug("PLAYER_ENTERING_WORLD", hasSwapRing, ...)
+    debug("PLAYER_ENTERING_WORLD", hasSwapRing, self, ...)
     if hasSwapRing then
         local instanceName, instanceType = _G.GetInstanceInfo()
         debug("Location:", instanceName, instanceType)
@@ -164,11 +180,11 @@ function frame:PLAYER_ENTERING_WORLD(...)
     end
 end
 function frame:PLAYER_EQUIPMENT_CHANGED(...)
-    debug("PLAYER_EQUIPMENT_CHANGED", ...)
+    debug("PLAYER_EQUIPMENT_CHANGED", self, ...)
     --return EquipInvRing()
 end
 function frame:PLAYER_LOGOUT()
-    debug("PLAYER_LOGOUT")
+    debug("PLAYER_LOGOUT", self)
     _G.RingJugglerChar = RJChar
 end
 
